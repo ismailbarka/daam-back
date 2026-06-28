@@ -1,0 +1,123 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum AnswerOption {
+  A
+  B
+  C
+  D
+}
+
+enum Level {
+  Beginner
+  Intermediate
+  Advanced
+}
+
+model User {
+  id                      Int                   @id @default(autoincrement())
+  username                String                @unique
+  password                String
+  role                    Role                  @default(STUDENT)
+  placementTestCompleted  Boolean               @default(false)
+  progress                Progress[]
+  placementTestResults    PlacementTestResult[]
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+}
+
+model Subject {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  lessons       Lesson[]
+  placementTest PlacementTest?
+  createdAt     DateTime       @default(now())
+}
+
+model Lesson {
+  id           Int            @id @default(autoincrement())
+  title        String
+  description  String?
+  youtubeUrl   String?
+  order        Int
+  passingScore Int
+  subjectId    Int
+  subject      Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions    QuizQuestion[]
+  progress     Progress[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model PlacementTest {
+  id        Int                  @id @default(autoincrement())
+  subjectId Int                  @unique
+  subject   Subject              @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions PlacementQuestion[]
+  results   PlacementTestResult[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model PlacementQuestion {
+  id              Int           @id @default(autoincrement())
+  placementTestId Int
+  placementTest   PlacementTest @relation(fields: [placementTestId], references: [id], onDelete: Cascade)
+  text            String
+  options         String[]
+  correctAnswer   String
+}
+
+model PlacementTestResult {
+  id              Int           @id @default(autoincrement())
+  placementTestId Int
+  placementTest   PlacementTest @relation(fields: [placementTestId], references: [id], onDelete: Cascade)
+  studentId       Int
+  student         User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  score           Float
+  level           Level
+  createdAt       DateTime      @default(now())
+
+  @@unique([studentId, placementTestId])
+}
+
+model QuizQuestion {
+  id            Int          @id @default(autoincrement())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer AnswerOption
+  lessonId      Int
+  lesson        Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Progress {
+  id          Int       @id @default(autoincrement())
+  studentId   Int
+  lessonId    Int
+  score       Int       @default(0)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  student     User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, lessonId])
+}
