@@ -42,3 +42,5 @@ Thumbs.db
 # prisma (generated client is in node_modules; local db files)
 *.db
 *.db-journal
+.vercel
+.env*.local
