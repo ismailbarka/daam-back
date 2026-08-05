@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { MailModule } from './mail/mail.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { QuizModule } from './quiz/quiz.module';
@@ -15,6 +16,7 @@ import { ProgressModule } from './progress/progress.module';
     PrismaModule,
     UsersModule,
     AuthModule,
+    MailModule,
     SubjectsModule,
     LessonsModule,
     QuizModule,
@@ -25,3 +27,4 @@ import { ProgressModule } from './progress/progress.module';
   providers: [AppService],
 })
 export class AppModule {}
+

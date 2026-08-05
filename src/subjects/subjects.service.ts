@@ -10,13 +10,30 @@ export class SubjectsService {
 
   async create(createSubjectDto: CreateSubjectDto): Promise<Subject> {
     return this.prisma.subject.create({
-      data: createSubjectDto,
+      data: {
+        name: createSubjectDto.name,
+        schoolLevel: createSubjectDto.schoolLevel ?? 1,
+      },
     });
   }
 
-  async findAll(studentId?: number): Promise<Subject[]> {
-    await this.ensurePlacementCompleted(studentId);
-    return this.prisma.subject.findMany({ orderBy: { name: 'asc' } });
+  async findAll(studentId?: number, schoolLevelFilter?: number): Promise<Subject[]> {
+    let whereClause: any = undefined;
+
+    if (studentId !== undefined) {
+      await this.ensurePlacementCompleted(studentId);
+      const student = await this.prisma.user.findUnique({ where: { id: studentId } });
+      if (student?.schoolLevel) {
+        whereClause = { schoolLevel: student.schoolLevel };
+      }
+    } else if (schoolLevelFilter !== undefined) {
+      whereClause = { schoolLevel: schoolLevelFilter };
+    }
+
+    return this.prisma.subject.findMany({
+      where: whereClause,
+      orderBy: [{ schoolLevel: 'asc' }, { name: 'asc' }],
+    });
   }
 
   async findOne(id: number, studentId?: number): Promise<Subject> {
@@ -32,7 +49,6 @@ export class SubjectsService {
   }
 
   async update(id: number, updateSubjectDto: UpdateSubjectDto): Promise<Subject> {
-    // Check existence first
     await this.findOne(id);
     return this.prisma.subject.update({
       where: { id },
@@ -41,7 +57,6 @@ export class SubjectsService {
   }
 
   async remove(id: number): Promise<Subject> {
-    // Check existence first
     await this.findOne(id);
     return this.prisma.subject.delete({
       where: { id },

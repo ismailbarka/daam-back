@@ -37,7 +37,16 @@ export class PlacementTestsService {
   async findAll(userRole: Role, studentId?: number) {
     await this.ensurePlacementIsAvailable(userRole, studentId);
 
+    let whereClause: any = undefined;
+    if (userRole === Role.STUDENT && studentId) {
+      const student = await this.prisma.user.findUnique({ where: { id: studentId } });
+      if (student?.schoolLevel) {
+        whereClause = { subject: { schoolLevel: student.schoolLevel } };
+      }
+    }
+
     const tests = await this.prisma.placementTest.findMany({
+      where: whereClause,
       include: { questions: true, subject: true },
       orderBy: { id: 'asc' },
     });

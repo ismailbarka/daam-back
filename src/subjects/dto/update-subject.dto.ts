@@ -1,7 +1,13 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsInt, Min, Max } from 'class-validator';
 
 export class UpdateSubjectDto {
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  @IsOptional()
+  name?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(6)
+  @IsOptional()
+  schoolLevel?: number;
 }

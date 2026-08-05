@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe, Request, Query } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
@@ -20,9 +20,10 @@ export class SubjectsController {
 
   @Get()
   @Roles(Role.ADMIN, Role.STUDENT)
-  async findAll(@Request() req) {
+  async findAll(@Request() req, @Query('schoolLevel') schoolLevelQuery?: string) {
     const studentId = req.user.role === Role.STUDENT ? req.user.id : undefined;
-    return this.subjectsService.findAll(studentId);
+    const schoolLevel = schoolLevelQuery ? parseInt(schoolLevelQuery, 10) : undefined;
+    return this.subjectsService.findAll(studentId, schoolLevel);
   }
 
   @Get(':id')

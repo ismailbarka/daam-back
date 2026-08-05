@@ -7,16 +7,19 @@ async function main() {
   const adminPassword = await bcrypt.hash('admin123', 10);
 
   await prisma.user.upsert({
-    where: { username: 'admin' },
+    where: { email: 'admin@daam.com' },
     update: {
       password: adminPassword,
       role: Role.ADMIN,
       placementTestCompleted: true,
     },
     create: {
+      email: 'admin@daam.com',
       username: 'admin',
       password: adminPassword,
       role: Role.ADMIN,
+      emailVerified: true,
+      profileCompleted: true,
       placementTestCompleted: true,
     },
   });
@@ -148,10 +151,11 @@ async function main() {
   ];
 
   for (const s of seedData) {
+    const schoolLevel = (s as any).schoolLevel || 1;
     const subject = await prisma.subject.upsert({
-      where: { name: s.name },
+      where: { name_schoolLevel: { name: s.name, schoolLevel } },
       update: {},
-      create: { name: s.name },
+      create: { name: s.name, schoolLevel },
     });
 
     for (const l of s.lessons) {

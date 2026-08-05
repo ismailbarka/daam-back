@@ -14,6 +14,11 @@ enum Role {
   STUDENT
 }
 
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
 enum AnswerOption {
   A
   B
@@ -29,9 +34,17 @@ enum Level {
 
 model User {
   id                      Int                   @id @default(autoincrement())
-  username                String                @unique
-  password                String
+  email                   String                @unique
+  password                String?
+  username                String?               @unique
   role                    Role                  @default(STUDENT)
+  authProvider            AuthProvider          @default(LOCAL)
+  googleId                String?               @unique
+  emailVerified           Boolean               @default(false)
+  emailVerifyToken        String?               @unique
+  emailVerifyExpires      DateTime?
+  profileCompleted        Boolean               @default(false)
+  schoolLevel             Int?
   placementTestCompleted  Boolean               @default(false)
   progress                Progress[]
   placementTestResults    PlacementTestResult[]
@@ -41,10 +54,13 @@ model User {
 
 model Subject {
   id            Int            @id @default(autoincrement())
-  name          String         @unique
+  name          String
+  schoolLevel   Int            @default(1)
   lessons       Lesson[]
   placementTest PlacementTest?
   createdAt     DateTime       @default(now())
+
+  @@unique([name, schoolLevel])
 }
 
 model Lesson {

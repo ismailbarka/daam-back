@@ -39,8 +39,19 @@ export class LessonsService {
   async findAll(subjectId?: number, studentId?: number): Promise<LessonWithStatus[]> {
     await this.ensurePlacementCompleted(studentId);
 
+    let whereClause: any = subjectId !== undefined ? { subjectId } : undefined;
+    if (studentId !== undefined) {
+      const student = await this.prisma.user.findUnique({ where: { id: studentId } });
+      if (student?.schoolLevel) {
+        whereClause = {
+          ...whereClause,
+          subject: { schoolLevel: student.schoolLevel },
+        };
+      }
+    }
+
     const lessons = await this.prisma.lesson.findMany({
-      where: subjectId !== undefined ? { subjectId } : undefined,
+      where: whereClause,
       orderBy: { order: 'asc' },
       include: {
         questions: {
