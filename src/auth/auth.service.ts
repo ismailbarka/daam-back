@@ -150,7 +150,8 @@ export class AuthService {
         audience: process.env.GOOGLE_CLIENT_ID,
       });
       payload = ticket.getPayload();
-    } catch {
+    } catch (err) {
+      console.error('Google token verification failed:', err);
       throw new UnauthorizedException('Invalid Google token');
     }
 
