@@ -75,7 +75,7 @@ export class AuthService {
     }
 
     const payload = { email: user.email, sub: user.id };
-    const requiresPlacementTest = user.role === 'STUDENT' && !user.placementTestCompleted;
+    const requiresPlacementTest = false;
 
     return {
       accessToken: this.jwtService.sign(payload),
@@ -173,6 +173,7 @@ export class AuthService {
           googleId,
           emailVerified: true,
           authProvider: 'GOOGLE',
+          placementTestCompleted: true,
         });
       } else {
         // Create new account
@@ -181,12 +182,13 @@ export class AuthService {
           googleId,
           authProvider: 'GOOGLE',
           emailVerified: true, // Google already verifies email
+          placementTestCompleted: true, // Skip placement test for Google users
         });
       }
     }
 
     const jwtPayload = { email: user.email, sub: user.id };
-    const requiresPlacementTest = user.role === 'STUDENT' && !user.placementTestCompleted;
+    const requiresPlacementTest = false;
 
     return {
       accessToken: this.jwtService.sign(jwtPayload),
@@ -216,9 +218,10 @@ export class AuthService {
       username,
       schoolLevel,
       profileCompleted: true,
+      placementTestCompleted: true,
     });
 
-    const requiresPlacementTest = user.role === 'STUDENT' && !user.placementTestCompleted;
+    const requiresPlacementTest = false;
 
     return {
       profileCompleted: user.profileCompleted,
@@ -242,7 +245,6 @@ export class AuthService {
   }): string {
     if (!user.profileCompleted) return 'complete-profile';
     if (user.role === 'ADMIN') return 'admin';
-    if (!user.placementTestCompleted) return 'placement-test';
     return 'subjects';
   }
 }

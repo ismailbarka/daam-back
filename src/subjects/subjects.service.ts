@@ -1,14 +1,18 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
-import { Subject } from '@prisma/client';
+import { Subject as PrismaSubject } from '@prisma/client';
+
+export type SubjectWithProgress = PrismaSubject & {
+  progress: number;
+};
 
 @Injectable()
 export class SubjectsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createSubjectDto: CreateSubjectDto): Promise<Subject> {
+  async create(createSubjectDto: CreateSubjectDto): Promise<PrismaSubject> {
     return this.prisma.subject.create({
       data: {
         name: createSubjectDto.name,
@@ -17,11 +21,19 @@ export class SubjectsService {
     });
   }
 
-  async findAll(studentId?: number, schoolLevelFilter?: number): Promise<Subject[]> {
+  private calculateProgress(completedLessons: number, totalLessons: number) {
+    if (totalLessons <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((completedLessons / totalLessons) * 100)));
+  }
+
+  private countCompletedLessons(lessons: Array<{ progress?: Array<{ completed: boolean }> }>) {
+    return lessons.filter((lesson) => lesson.progress?.[0]?.completed === true).length;
+  }
+
+  async findAll(studentId?: number, schoolLevelFilter?: number): Promise<SubjectWithProgress[]> {
     let whereClause: any = undefined;
 
     if (studentId !== undefined) {
-      await this.ensurePlacementCompleted(studentId);
       const student = await this.prisma.user.findUnique({ where: { id: studentId } });
       if (student?.schoolLevel) {
         whereClause = { schoolLevel: student.schoolLevel };
@@ -30,25 +42,72 @@ export class SubjectsService {
       whereClause = { schoolLevel: schoolLevelFilter };
     }
 
-    return this.prisma.subject.findMany({
+    const subjects = await this.prisma.subject.findMany({
       where: whereClause,
+      include: studentId
+        ? {
+            lessons: {
+              include: {
+                progress: {
+                  where: { studentId },
+                },
+              },
+              orderBy: { order: 'asc' },
+            },
+          }
+        : {
+            lessons: {
+              select: { id: true },
+            },
+          },
       orderBy: [{ schoolLevel: 'asc' }, { name: 'asc' }],
+    });
+
+    return subjects.map((subject) => {
+      const totalLessons = subject.lessons.length;
+      const completedLessons = studentId ? this.countCompletedLessons(subject.lessons as any) : 0;
+
+      return {
+        ...subject,
+        progress: this.calculateProgress(completedLessons, totalLessons),
+      };
     });
   }
 
-  async findOne(id: number, studentId?: number): Promise<Subject> {
-    await this.ensurePlacementCompleted(studentId);
-
+  async findOne(id: number, studentId?: number): Promise<SubjectWithProgress> {
     const subject = await this.prisma.subject.findUnique({
       where: { id },
+      include: studentId
+        ? {
+            lessons: {
+              include: {
+                progress: {
+                  where: { studentId },
+                },
+              },
+              orderBy: { order: 'asc' },
+            },
+          }
+        : {
+            lessons: {
+              select: { id: true },
+            },
+          },
     });
     if (!subject) {
       throw new NotFoundException(`Subject with ID ${id} not found`);
     }
-    return subject;
+
+    const totalLessons = subject.lessons.length;
+    const completedLessons = studentId ? this.countCompletedLessons(subject.lessons as any) : 0;
+
+    return {
+      ...subject,
+      progress: this.calculateProgress(completedLessons, totalLessons),
+    };
   }
 
-  async update(id: number, updateSubjectDto: UpdateSubjectDto): Promise<Subject> {
+  async update(id: number, updateSubjectDto: UpdateSubjectDto): Promise<PrismaSubject> {
     await this.findOne(id);
     return this.prisma.subject.update({
       where: { id },
@@ -56,19 +115,10 @@ export class SubjectsService {
     });
   }
 
-  async remove(id: number): Promise<Subject> {
+  async remove(id: number): Promise<PrismaSubject> {
     await this.findOne(id);
     return this.prisma.subject.delete({
       where: { id },
     });
-  }
-
-  private async ensurePlacementCompleted(studentId?: number) {
-    if (studentId === undefined) return;
-
-    const student = await this.prisma.user.findUnique({ where: { id: studentId } });
-    if (!student?.placementTestCompleted) {
-      throw new ForbiddenException('Complete the placement test first');
-    }
   }
 }
