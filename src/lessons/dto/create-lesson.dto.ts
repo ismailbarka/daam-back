@@ -14,7 +14,8 @@ export class CreateLessonDto {
   youtubeUrl?: string;
 
   @IsInt()
-  @Min(0)
+  @Min(1)
+  @IsOptional()
   order: number;
 
   @IsInt()

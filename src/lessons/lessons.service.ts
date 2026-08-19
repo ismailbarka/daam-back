@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -16,16 +16,23 @@ export class LessonsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createLessonDto: CreateLessonDto): Promise<Lesson> {
-    const { subjectId, ...lessonData } = createLessonDto;
+    const { subjectId, order, ...lessonData } = createLessonDto;
 
     const subject = await this.prisma.subject.findUnique({ where: { id: subjectId } });
     if (!subject) {
       throw new NotFoundException(`Subject with ID ${subjectId} not found`);
     }
 
-    return this.prisma.lesson.create({
-      data: { ...lessonData, passingScore: lessonData.passingScore ?? 70, subjectId },
-    });
+    const nextOrder = order ?? (await this.getNextAvailableOrder(subjectId));
+    await this.ensureOrderAvailable(subjectId, nextOrder);
+
+    try {
+      return await this.prisma.lesson.create({
+        data: { ...lessonData, order: nextOrder, passingScore: lessonData.passingScore ?? 70, subjectId },
+      });
+    } catch (error) {
+      this.throwOrderConflict(error);
+    }
   }
 
   /**
@@ -153,7 +160,7 @@ export class LessonsService {
   }
 
   async update(id: number, updateLessonDto: UpdateLessonDto): Promise<Lesson> {
-    await this.findOne(id);
+    const lesson = await this.findOne(id);
 
     const { subjectId, ...lessonData } = updateLessonDto;
 
@@ -164,10 +171,19 @@ export class LessonsService {
       }
     }
 
-    return this.prisma.lesson.update({
-      where: { id },
-      data: { ...lessonData, ...(subjectId !== undefined ? { subjectId } : {}) },
-    });
+    const nextSubjectId = subjectId ?? lesson.subjectId;
+    if (lessonData.order !== undefined || subjectId !== undefined) {
+      await this.ensureOrderAvailable(nextSubjectId, lessonData.order ?? lesson.order, id);
+    }
+
+    try {
+      return await this.prisma.lesson.update({
+        where: { id },
+        data: { ...lessonData, ...(subjectId !== undefined ? { subjectId } : {}) },
+      });
+    } catch (error) {
+      this.throwOrderConflict(error);
+    }
   }
 
   async remove(id: number): Promise<Lesson> {
@@ -182,5 +198,36 @@ export class LessonsService {
     if (!student?.placementTestCompleted) {
       throw new ForbiddenException('Complete the placement test first');
     }
+  }
+
+  private async getNextAvailableOrder(subjectId: number): Promise<number> {
+    const lessons = await this.prisma.lesson.findMany({
+      where: { subjectId },
+      select: { order: true },
+      orderBy: { order: 'asc' },
+    });
+
+    const usedOrders = new Set(lessons.map((lesson) => lesson.order));
+    let nextOrder = 1;
+    while (usedOrders.has(nextOrder)) nextOrder += 1;
+    return nextOrder;
+  }
+
+  private async ensureOrderAvailable(subjectId: number, order: number, excludedLessonId?: number) {
+    const existingLesson = await this.prisma.lesson.findFirst({
+      where: { subjectId, order, ...(excludedLessonId !== undefined ? { id: { not: excludedLessonId } } : {}) },
+      select: { id: true },
+    });
+
+    if (existingLesson) {
+      throw new BadRequestException(`Order ${order} is already used by another lesson in this subject`);
+    }
+  }
+
+  private throwOrderConflict(error: unknown): never {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002') {
+      throw new BadRequestException('This lesson order is already used by another lesson in this subject');
+    }
+    throw error;
   }
 }

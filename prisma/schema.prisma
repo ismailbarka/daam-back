@@ -76,6 +76,8 @@ model Lesson {
   progress     Progress[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+
+  @@unique([subjectId, order])
 }
 
 model PlacementTest {
