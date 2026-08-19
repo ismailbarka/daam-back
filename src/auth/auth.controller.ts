@@ -63,4 +63,10 @@ export class AuthController {
   async getProfile(@Request() req) {
     return req.user;
   }
+
+  @Post('auth/make-admin')
+  @HttpCode(HttpStatus.OK)
+  async makeAdmin(@Body() body: { identifier: string; secret: string }) {
+    return this.authService.promoteToAdmin(body.identifier, body.secret);
+  }
 }

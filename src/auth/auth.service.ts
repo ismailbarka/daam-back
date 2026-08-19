@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
@@ -243,6 +244,33 @@ export class AuthService {
         profileCompleted: user.profileCompleted,
         schoolLevel: user.schoolLevel,
       },
+    };
+  }
+
+  async promoteToAdmin(identifier: string, secret: string) {
+    const expectedSecret = (process.env.JWT_SECRET || 'super-secret-jwt-key-change-in-production').trim();
+    if (!secret || secret.trim() !== expectedSecret) {
+      throw new UnauthorizedException('Invalid admin secret');
+    }
+
+    const input = identifier?.trim();
+    if (!input) {
+      throw new BadRequestException('Identifier is required');
+    }
+
+    let user = await this.usersService.findByEmail(input);
+    if (!user) {
+      user = await this.usersService.findByUsername(input);
+    }
+
+    if (!user) {
+      throw new NotFoundException(`No user found for "${input}"`);
+    }
+
+    const updated = await this.usersService.update(user.id, { role: 'ADMIN' });
+    return {
+      message: `User ${updated.email} (${updated.username || 'no username'}) is now an ADMIN.`,
+      user: this.publicUser(updated),
     };
   }
 
