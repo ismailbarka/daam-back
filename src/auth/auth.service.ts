@@ -302,7 +302,10 @@ export class AuthService {
   }
 
   private getGoogleClientId() {
-    return (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^['"]|['"]$/g, '');
+    return (
+      (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^['"]|['"]$/g, '') ||
+      '283771604701-p0qc84oc0i4jka8qhe3jbgrv6otd2dak.apps.googleusercontent.com'
+    );
   }
 
   private isPrismaConflict(error: unknown) {
