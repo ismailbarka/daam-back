@@ -27,7 +27,7 @@ export class AuthService {
     private mailService: MailService,
     private prisma: PrismaService,
   ) {
-    this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    this.googleClient = new OAuth2Client(this.getGoogleClientId());
   }
 
   async register(registerDto: RegisterDto) {
@@ -149,7 +149,7 @@ export class AuthService {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: this.getGoogleClientId(),
       });
       payload = ticket.getPayload();
     } catch (err) {
@@ -163,50 +163,55 @@ export class AuthService {
 
     const { email, sub: googleId } = payload;
 
-    // Check if user exists by Google ID
-    let user = await this.usersService.findByGoogleId(googleId);
+    try {
+      // Check if user exists by Google ID
+      let user = await this.usersService.findByGoogleId(googleId);
 
-    if (!user) {
-      // Check if a local account with this email already exists
-      user = await this.usersService.findByEmail(email);
+      if (!user) {
+        // Check if a local account with this email already exists
+        user = await this.usersService.findByEmail(email);
 
-      if (user) {
-        // Link Google to existing account
-        user = await this.usersService.update(user.id, {
-          googleId,
-          emailVerified: true,
-          authProvider: 'GOOGLE',
-          placementTestCompleted: true,
-        });
-      } else {
-        // Create new account
-        user = await this.usersService.create({
-          email,
-          googleId,
-          authProvider: 'GOOGLE',
-          emailVerified: true, // Google already verifies email
-          placementTestCompleted: true, // Skip placement test for Google users
-        });
+        if (user) {
+          // Link Google to an existing account
+          user = await this.usersService.update(user.id, {
+            googleId,
+            emailVerified: true,
+            authProvider: 'GOOGLE',
+            placementTestCompleted: true,
+          });
+        } else {
+          // Create a new account. If two callbacks arrive together, recover by
+          // reading the account created by the other callback below.
+          try {
+            user = await this.usersService.create({
+              email,
+              googleId,
+              authProvider: 'GOOGLE',
+              emailVerified: true,
+              placementTestCompleted: true,
+            });
+          } catch (error) {
+            if (!this.isPrismaConflict(error)) throw error;
+            user = await this.usersService.findByGoogleId(googleId) ?? await this.usersService.findByEmail(email);
+            if (!user) throw error;
+          }
+        }
       }
-    }
 
-    const jwtPayload = { email: user.email, sub: user.id };
-    const requiresPlacementTest = false;
+      const jwtPayload = { email: user.email, sub: user.id };
+      const requiresPlacementTest = false;
 
-    return {
-      ...(await this.createSession(user.id, jwtPayload)),
-      requiresPlacementTest,
-      profileCompleted: user.profileCompleted,
-      nextStep: this.getNextStep(user),
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
+      return {
+        ...(await this.createSession(user.id, jwtPayload)),
+        requiresPlacementTest,
         profileCompleted: user.profileCompleted,
-        schoolLevel: user.schoolLevel,
-      },
-    };
+        nextStep: this.getNextStep(user),
+        user: this.publicUser(user),
+      };
+    } catch (error) {
+      console.error('Google account provisioning failed:', error);
+      throw new BadRequestException('Google sign-in could not be completed. Please try again.');
+    }
   }
 
   async completeProfile(userId: number, completeProfileDto: CompleteProfileDto) {
@@ -294,6 +299,14 @@ export class AuthService {
 
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private getGoogleClientId() {
+    return (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^['"]|['"]$/g, '');
+  }
+
+  private isPrismaConflict(error: unknown) {
+    return error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002';
   }
 
   private publicUser(user: any) {
