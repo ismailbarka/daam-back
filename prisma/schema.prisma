@@ -48,8 +48,22 @@ model User {
   placementTestCompleted  Boolean               @default(false)
   progress                Progress[]
   placementTestResults    PlacementTestResult[]
+  refreshTokens           RefreshToken[]
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Subject {

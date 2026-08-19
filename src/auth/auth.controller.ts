@@ -4,6 +4,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller()
@@ -36,6 +37,18 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
     return this.authService.googleLogin(googleLoginDto);
+  }
+
+  @Post('auth/refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refresh(refreshTokenDto.refreshToken);
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(@Body() refreshTokenDto: RefreshTokenDto) {
+    await this.authService.logout(refreshTokenDto.refreshToken);
   }
 
   @UseGuards(JwtAuthGuard)

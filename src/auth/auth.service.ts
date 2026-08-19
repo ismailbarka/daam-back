@@ -13,8 +13,9 @@ import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import * as bcrypt from 'bcryptjs';
-import { randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private mailService: MailService,
+    private prisma: PrismaService,
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
   }
@@ -78,7 +80,7 @@ export class AuthService {
     const requiresPlacementTest = false;
 
     return {
-      accessToken: this.jwtService.sign(payload),
+      ...(await this.createSession(user.id, payload)),
       requiresPlacementTest,
       profileCompleted: user.profileCompleted,
       nextStep: this.getNextStep(user),
@@ -192,7 +194,7 @@ export class AuthService {
     const requiresPlacementTest = false;
 
     return {
-      accessToken: this.jwtService.sign(jwtPayload),
+      ...(await this.createSession(user.id, jwtPayload)),
       requiresPlacementTest,
       profileCompleted: user.profileCompleted,
       nextStep: this.getNextStep(user),
@@ -236,6 +238,72 @@ export class AuthService {
         profileCompleted: user.profileCompleted,
         schoolLevel: user.schoolLevel,
       },
+    };
+  }
+
+  async refresh(refreshToken: string) {
+    const tokenHash = this.hashToken(refreshToken);
+    const storedToken = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!storedToken || storedToken.revokedAt || storedToken.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Your session has expired. Please log in again.');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date() },
+    });
+
+    const payload = { email: storedToken.user.email, sub: storedToken.user.id };
+    return {
+      ...(await this.createSession(storedToken.user.id, payload)),
+      user: this.publicUser(storedToken.user),
+      profileCompleted: storedToken.user.profileCompleted,
+      nextStep: this.getNextStep(storedToken.user),
+    };
+  }
+
+  async logout(refreshToken: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  private async createSession(userId: number, payload: { email: string; sub: number }) {
+    const refreshToken = randomBytes(48).toString('base64url');
+    const refreshTokenExpiresAt = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: this.hashToken(refreshToken),
+        userId,
+        expiresAt: refreshTokenExpiresAt,
+      },
+    });
+
+    return {
+      accessToken: this.jwtService.sign(payload),
+      refreshToken,
+      refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString(),
+    };
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private publicUser(user: any) {
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      profileCompleted: user.profileCompleted,
+      schoolLevel: user.schoolLevel,
     };
   }
 
