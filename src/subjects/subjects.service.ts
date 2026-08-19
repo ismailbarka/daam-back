@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
@@ -109,10 +109,17 @@ export class SubjectsService {
 
   async update(id: number, updateSubjectDto: UpdateSubjectDto): Promise<PrismaSubject> {
     await this.findOne(id);
-    return this.prisma.subject.update({
-      where: { id },
-      data: updateSubjectDto,
-    });
+    try {
+      return await this.prisma.subject.update({
+        where: { id },
+        data: updateSubjectDto,
+      });
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002') {
+        throw new BadRequestException('A subject with this name already exists for this school level');
+      }
+      throw error;
+    }
   }
 
   async remove(id: number): Promise<PrismaSubject> {
