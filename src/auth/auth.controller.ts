@@ -1,9 +1,10 @@
-import { Controller, Post, Get, Body, Query, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
+import { UpdateLevelDto } from './dto/update-level.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -62,6 +63,13 @@ export class AuthController {
   @Get('me')
   async getProfile(@Request() req) {
     return req.user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('users/me/level')
+  @HttpCode(HttpStatus.OK)
+  async updateLevel(@Request() req, @Body() updateLevelDto: UpdateLevelDto) {
+    return this.authService.updateLevel(req.user.id, updateLevelDto);
   }
 
   @Post('auth/make-admin')

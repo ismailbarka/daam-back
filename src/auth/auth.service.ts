@@ -13,6 +13,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
+import { UpdateLevelDto } from './dto/update-level.dto';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
@@ -245,6 +246,19 @@ export class AuthService {
         schoolLevel: user.schoolLevel,
       },
     };
+  }
+
+  async updateLevel(userId: number, updateLevelDto: UpdateLevelDto) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const updated = await this.usersService.update(userId, {
+      schoolLevel: updateLevelDto.schoolLevel,
+    });
+
+    return this.publicUser(updated);
   }
 
   async promoteToAdmin(identifier: string, secret: string) {
